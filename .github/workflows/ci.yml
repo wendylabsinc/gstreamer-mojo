@@ -24,7 +24,7 @@ jobs:
         with:
           enable-cache: false
       - name: Install GStreamer on macOS
-        run: brew install cmake pkgconf gstreamer libnice
+        run: brew install cmake pkgconf gstreamer libnice-gstreamer
       - name: Verify platform
         run: test "$(uname -m)" = "arm64"
       - name: Build native bridge
