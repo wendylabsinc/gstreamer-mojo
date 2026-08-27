@@ -20,7 +20,7 @@ uv pip install mojo==1.0.0
 macOS (Apple silicon):
 
 ```bash
-brew install cmake pkgconf gstreamer
+brew install cmake pkgconf gstreamer libnice
 ```
 
 Ubuntu 22.04+:
