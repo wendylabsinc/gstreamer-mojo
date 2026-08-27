@@ -14,41 +14,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  integration:
-    name: ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux x86_64 / Mojo 1.0
-            os: ubuntu-22.04
-            platform: linux
-          - name: macOS arm64 / Mojo 1.0
-            os: macos-15
-            platform: macos
-    runs-on: ${{ matrix.os }}
+  macos:
+    name: macOS arm64 / Mojo 1.0
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - name: Install GStreamer on Linux
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            cmake pkg-config libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev \
-            libgstreamer-plugins-bad1.0-dev \
-            gstreamer1.0-tools gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
-            gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-nice
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: false
       - name: Install GStreamer on macOS
-        if: matrix.platform == 'macos'
         run: brew install cmake pkgconf gstreamer
       - name: Verify platform
-        run: |
-          uname -a
-          test "$(uname -m)" = "arm64" || test "${{ matrix.platform }}" = "linux"
+        run: test "$(uname -m)" = "arm64"
       - name: Build native bridge
         run: |
           cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
@@ -65,11 +43,19 @@ jobs:
           uvx --from mojo==1.0.0 mojo build -I . examples/h264_decode.mojo -o build/h264-decode
           uvx --from mojo==1.0.0 mojo build -I . examples/webrtc_offer.mojo -o build/webrtc-offer
 
-  linux-arm64:
-    name: Linux arm64 / Mojo 1.0
-    runs-on: ubuntu-22.04-arm
+  linux:
+    name: Linux ${{ matrix.arch }} / Mojo 1.0
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-22.04
+          - arch: arm64
+            os: ubuntu-22.04-arm
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and run integration suite
         run: docker build --target builder --tag gstreamer-mojo-ci .
