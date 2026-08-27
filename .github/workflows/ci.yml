@@ -1,0 +1,75 @@
+name: Continuous integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64 / Mojo 1.0
+            os: ubuntu-22.04
+            platform: linux
+          - name: macOS arm64 / Mojo 1.0
+            os: macos-15
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install GStreamer on Linux
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake pkg-config libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
+            gstreamer1.0-tools gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-nice
+      - name: Install GStreamer on macOS
+        if: matrix.platform == 'macos'
+        run: brew install cmake pkgconf gstreamer
+      - name: Verify platform
+        run: |
+          uname -a
+          test "$(uname -m)" = "arm64" || test "${{ matrix.platform }}" = "linux"
+      - name: Build native bridge
+        run: |
+          cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+      - name: Run native integration suite
+        run: ctest --test-dir build --output-on-failure
+      - name: Run Mojo 1.0 integration suite
+        run: uvx --from mojo==1.0.0 mojo run -I . tests/mojo_smoke.mojo
+      - name: Precompile Mojo package and examples
+        run: |
+          uvx --from mojo==1.0.0 mojo precompile gstreamer_mojo -o build/gstreamer_mojo.mojoc
+          uvx --from mojo==1.0.0 mojo build -I . examples/video_frames.mojo -o build/video-frames
+          uvx --from mojo==1.0.0 mojo build -I . examples/pcm_to_opus.mojo -o build/pcm-to-opus
+          uvx --from mojo==1.0.0 mojo build -I . examples/h264_decode.mojo -o build/h264-decode
+          uvx --from mojo==1.0.0 mojo build -I . examples/webrtc_offer.mojo -o build/webrtc-offer
+
+  linux-arm64:
+    name: Linux arm64 / Mojo 1.0
+    runs-on: ubuntu-22.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run integration suite
+        run: docker build --target builder --tag gstreamer-mojo-ci .

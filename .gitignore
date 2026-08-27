@@ -1,0 +1,7 @@
+/build/
+/build-*/
+*.mojoc
+*.dylib
+*.so
+*.so.*
+.DS_Store
